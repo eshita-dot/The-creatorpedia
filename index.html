@@ -7,22 +7,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f8f9fa; color: #333; }
+        body { font-family: "Inter", sans-serif; background: #f8f9fa; color: #333; }
         nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 60px; background: white; border-bottom: 1px solid #e8e8e8; }
-        .logo { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: #000; }
+        .logo { font-family: "Playfair Display", serif; font-size: 1.5rem; font-weight: 700; color: #000; }
         .nav-links { display: flex; gap: 40px; align-items: center; }
         .nav-links a { text-decoration: none; color: #666; transition: color 0.3s; }
         .nav-links a:hover { color: #000; }
         .login-btn { background: #003087; color: white !important; padding: 10px 30px; border-radius: 4px; }
         .hero { text-align: center; padding: 80px 20px 60px; max-width: 1200px; margin: 0 auto; }
         .subtitle { font-size: 0.75rem; letter-spacing: 3px; text-transform: uppercase; color: #999; margin-bottom: 30px; }
-        h1 { font-family: 'Playfair Display', serif; font-size: 5rem; font-weight: 400; margin-bottom: 20px; }
+        h1 { font-family: "Playfair Display", serif; font-size: 5rem; font-weight: 400; margin-bottom: 20px; }
         .tagline { font-size: 1.1rem; color: #666; margin-bottom: 60px; }
         .search-container { max-width: 900px; margin: 0 auto; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 40px; }
         .tabs { display: flex; border-bottom: 2px solid #e8e8e8; margin-bottom: 30px; }
         .tab { flex: 1; text-align: center; padding: 15px; background: none; border: none; font-size: 0.9rem; font-weight: 600; color: #999; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; position: relative; }
         .tab.active { color: #003087; }
-        .tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #003087; }
+        .tab.active::after { content: ""; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #003087; }
         .search-box { display: flex; gap: 15px; margin-bottom: 30px; }
         .search-input-wrapper { flex: 1; position: relative; }
         .search-icon { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); font-size: 1.2rem; }
@@ -36,7 +36,7 @@
         .results-section { max-width: 1200px; margin: 40px auto; padding: 0 20px; display: none; }
         .results-section.active { display: block; }
         .loading { text-align: center; padding: 60px; font-size: 1.2rem; color: #666; }
-        .influencer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 30px; margin-top: 30px; }
+        .influencer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 30px; margin-top: 30px; }
         .influencer-card { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 30px; transition: transform 0.3s, box-shadow 0.3s; }
         .influencer-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .influencer-name { font-size: 1.3rem; font-weight: 600; margin-bottom: 5px; }
@@ -46,6 +46,12 @@
         .stat-label { font-size: 0.75rem; color: #999; text-transform: uppercase; letter-spacing: 1px; }
         .stat-value { font-size: 1.1rem; font-weight: 600; color: #333; }
         .influencer-category { display: inline-block; background: #f0f0f0; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; margin-top: 10px; }
+        .brand-section { margin-top: 20px; padding-top: 15px; border-top: 1px solid #f0f0f0; }
+        .brand-section-title { font-size: 0.75rem; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .brand-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .brand-tag { display: inline-block; background: #e3f2fd; color: #003087; padding: 6px 12px; border-radius: 12px; font-size: 0.85rem; }
+        .recent-deals { margin-top: 15px; }
+        .deal-item { font-size: 0.9rem; color: #666; padding: 5px 0; }
         @media (max-width: 768px) { h1 { font-size: 3rem; } .search-box { flex-direction: column; } nav { padding: 20px 30px; } }
     </style>
 </head>
@@ -96,8 +102,8 @@
     </section>
 
     <script>
-        const SHEET_ID = '1-b42-16e9g2kouyW3BIYxRZ0Bo90K1s6zLoYtD3mY_k';
-        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json';
+        const SHEET_ID = "1-b42-16e9g2kouyW3BIYxRZ0Bo90K1s6zLoYtD3mY_k";
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:json";
 
         let allInfluencers = [];
 
@@ -108,31 +114,37 @@
                 const json = JSON.parse(text.substr(47).slice(0, -2));
                 const rows = json.table.rows;
                 allInfluencers = rows.map(row => ({
-                    name: row.c[0]?.v || '',
-                    handle: row.c[1]?.v || '',
+                    name: row.c[0]?.v || "",
+                    handle: row.c[1]?.v || "",
                     followers: row.c[2]?.v || 0,
-                    category: row.c[3]?.v || '',
-                    location: row.c[4]?.v || '',
-                    language: row.c[5]?.v || '',
-                    brands: row.c[6]?.v || '',
-                    profileLink: row.c[12]?.v || ''
+                    category: row.c[3]?.v || "",
+                    location: row.c[4]?.v || "",
+                    language: row.c[5]?.v || "",
+                    brands: row.c[6]?.v || "",
+                    deal1: row.c[7]?.v || "",
+                    deal2: row.c[8]?.v || "",
+                    deal3: row.c[9]?.v || "",
+                    contentType: row.c[10]?.v || "",
+                    engagement: row.c[11]?.v || "",
+                    profileLink: row.c[12]?.v || ""
                 }));
+                console.log("Loaded " + allInfluencers.length + " influencers");
             } catch (error) {
-                console.error('Error:', error);
+                console.error("Error:", error);
             }
         }
 
         function fillSearch(query) {
-            document.getElementById('searchInput').value = query;
+            document.getElementById("searchInput").value = query;
         }
 
         async function performSearch() {
-            const query = document.getElementById('searchInput').value.toLowerCase().trim();
-            if (!query) { alert('Please enter a search term'); return; }
+            const query = document.getElementById("searchInput").value.toLowerCase().trim();
+            if (!query) { alert("Please enter a search term"); return; }
 
-            document.getElementById('resultsSection').classList.add('active');
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('influencerGrid').style.display = 'none';
+            document.getElementById("resultsSection").classList.add("active");
+            document.getElementById("loading").style.display = "block";
+            document.getElementById("influencerGrid").style.display = "none";
 
             if (allInfluencers.length === 0) await loadInfluencers();
 
@@ -149,46 +161,80 @@
         }
 
         function displayResults(results) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('influencerGrid').style.display = 'grid';
-            document.getElementById('resultsCount').textContent = 'Found ' + results.length + ' influencers';
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("influencerGrid").style.display = "grid";
+            document.getElementById("resultsCount").textContent = "Found " + results.length + " influencers";
 
-            const grid = document.getElementById('influencerGrid');
+            const grid = document.getElementById("influencerGrid");
             if (results.length === 0) {
                 grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #666; padding: 60px;">No influencers found. Try a different search term.</p>';
                 return;
             }
 
-            grid.innerHTML = results.map(inf => `
-                <div class="influencer-card">
-                    <div class="influencer-name">${inf.name}</div>
-                    <a href="${inf.profileLink}" target="_blank" class="influencer-handle">${inf.handle}</a>
-                    <div class="influencer-stats">
-                        <div class="stat">
-                            <div class="stat-label">Followers</div>
-                            <div class="stat-value">${formatNumber(inf.followers)}</div>
+            grid.innerHTML = results.map(inf => {
+                let brandsHTML = "";
+                if (inf.brands) {
+                    const brandList = inf.brands.split(",").map(b => b.trim()).filter(b => b);
+                    if (brandList.length > 0) {
+                        brandsHTML = `
+                            <div class="brand-section">
+                                <div class="brand-section-title">Brand Collaborations</div>
+                                <div class="brand-tags">
+                                    ${brandList.map(brand => '<span class="brand-tag">' + brand + '</span>').join("")}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                let dealsHTML = "";
+                const deals = [inf.deal1, inf.deal2, inf.deal3].filter(d => d);
+                if (deals.length > 0) {
+                    dealsHTML = `
+                        <div class="recent-deals">
+                            <div class="brand-section-title">Recent Deals</div>
+                            ${deals.map(deal => '<div class="deal-item">• ' + deal + '</div>').join("")}
                         </div>
-                        <div class="stat">
-                            <div class="stat-label">Location</div>
-                            <div class="stat-value">${inf.location}</div>
+                    `;
+                }
+
+                return `
+                    <div class="influencer-card">
+                        <div class="influencer-name">${inf.name}</div>
+                        <a href="${inf.profileLink}" target="_blank" class="influencer-handle">${inf.handle}</a>
+                        <div class="influencer-stats">
+                            <div class="stat">
+                                <div class="stat-label">Followers</div>
+                                <div class="stat-value">${formatNumber(inf.followers)}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Location</div>
+                                <div class="stat-value">${inf.location}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Engagement</div>
+                                <div class="stat-value">${inf.engagement}</div>
+                            </div>
                         </div>
+                        <div class="influencer-category">${inf.category}</div>
+                        ${brandsHTML}
+                        ${dealsHTML}
                     </div>
-                    <div class="influencer-category">${inf.category}</div>
-                </div>
-            `).join('');
+                `;
+            }).join("");
         }
 
         function formatNumber(num) {
-            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+            if (num >= 1000) return (num / 1000).toFixed(1) + "K";
             return num;
         }
 
-        document.getElementById('searchInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') performSearch();
+        document.getElementById("searchInput").addEventListener("keypress", function(e) {
+            if (e.key === "Enter") performSearch();
         });
 
-        window.addEventListener('load', loadInfluencers);
+        window.addEventListener("load", loadInfluencers);
     </script>
 </body>
 </html>
