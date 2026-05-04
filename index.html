@@ -34,10 +34,7 @@
         .try-tag { background: white; border: 1px solid #ddd; padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; color: #666; cursor: pointer; }
         .try-tag:hover { border-color: #003087; color: #003087; }
         
-        /* NEW: Content wrapper with sidebar */
         .content-wrapper { max-width: 1400px; margin: 40px auto; padding: 0 40px; display: grid; grid-template-columns: 280px 1fr; gap: 40px; }
-        
-        /* NEW: Filter Sidebar */
         .filter-sidebar { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 24px; height: fit-content; position: sticky; top: 20px; }
         .filter-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e8e8e8; }
         .filter-title { font-size: 1.1rem; font-weight: 700; color: #000; }
@@ -55,16 +52,29 @@
         .results-count { font-size: 1.2rem; font-weight: 600; color: #333; }
         .sort-dropdown { padding: 10px 16px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; cursor: pointer; }
         .loading { text-align: center; padding: 60px; font-size: 1.2rem; color: #666; }
-        .influencer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 30px; margin-top: 30px; }
-        .influencer-card { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 30px; transition: transform 0.3s, box-shadow 0.3s; }
+        .influencer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 30px; margin-top: 30px; }
+        .influencer-card { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 36px; transition: transform 0.3s, box-shadow 0.3s; }
         .influencer-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .influencer-name { font-size: 1.3rem; font-weight: 600; margin-bottom: 5px; }
-        .influencer-handle { color: #003087; text-decoration: none; margin-bottom: 15px; display: inline-block; }
-        .influencer-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; padding: 20px 0; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; }
+        .card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; }
+        .influencer-name { font-size: 1.4rem; font-weight: 600; margin-bottom: 5px; }
+        .verified-badge { color: #1DA1F2; font-size: 1.2rem; }
+        .influencer-handle { color: #003087; text-decoration: none; margin-bottom: 12px; display: inline-block; }
+        .influencer-bio { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.5; }
+        .influencer-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; padding: 20px 0; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; }
         .stat { text-align: center; }
         .stat-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-        .stat-value { font-size: 1.1rem; font-weight: 600; color: #333; }
+        .stat-value { font-size: 1.05rem; font-weight: 600; color: #333; }
         .influencer-category { display: inline-block; background: #f0f0f0; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; margin-top: 10px; }
+        .content-breakdown { margin-top: 20px; }
+        .content-breakdown-title { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; }
+        .content-bars { display: flex; gap: 8px; margin-bottom: 8px; }
+        .content-bar { height: 8px; border-radius: 4px; }
+        .bar-reels { background: #E1306C; }
+        .bar-posts { background: #405DE6; }
+        .bar-stories { background: #5B51D8; }
+        .content-legend { display: flex; gap: 16px; font-size: 0.85rem; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
         .brand-section { margin-top: 20px; padding-top: 15px; border-top: 1px solid #f0f0f0; }
         .brand-section-title { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; }
         .brand-tags { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -73,7 +83,7 @@
         .deal-item { font-size: 0.9rem; color: #666; padding: 5px 0; }
         
         @media (max-width: 1200px) { .content-wrapper { grid-template-columns: 1fr; } .filter-sidebar { position: relative; top: 0; } }
-        @media (max-width: 768px) { h1 { font-size: 3rem; } .search-box { flex-direction: column; } nav { padding: 20px 30px; } }
+        @media (max-width: 768px) { h1 { font-size: 3rem; } .search-box { flex-direction: column; } nav { padding: 20px 30px; } .influencer-stats { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
 <body>
@@ -120,7 +130,6 @@
                 <h2 class="filter-title">Filters</h2>
                 <button class="clear-filters" onclick="clearAllFilters()">Clear All</button>
             </div>
-
             <div class="filter-group">
                 <div class="filter-group-title">Category</div>
                 <div class="filter-option"><input type="checkbox" id="cat-beauty" value="Beauty" onchange="applyFilters()"><label for="cat-beauty">Beauty</label><span class="filter-count" id="count-beauty">0</span></div>
@@ -131,20 +140,17 @@
                 <div class="filter-option"><input type="checkbox" id="cat-travel" value="Travel" onchange="applyFilters()"><label for="cat-travel">Travel</label><span class="filter-count" id="count-travel">0</span></div>
                 <div class="filter-option"><input type="checkbox" id="cat-entertainment" value="Entertainment" onchange="applyFilters()"><label for="cat-entertainment">Entertainment</label><span class="filter-count" id="count-entertainment">0</span></div>
             </div>
-
             <div class="filter-group">
                 <div class="filter-group-title">Location</div>
                 <div class="filter-option"><input type="checkbox" id="loc-mumbai" value="Mumbai" onchange="applyFilters()"><label for="loc-mumbai">Mumbai</label><span class="filter-count" id="count-mumbai">0</span></div>
                 <div class="filter-option"><input type="checkbox" id="loc-delhi" value="Delhi" onchange="applyFilters()"><label for="loc-delhi">Delhi</label><span class="filter-count" id="count-delhi">0</span></div>
                 <div class="filter-option"><input type="checkbox" id="loc-bangalore" value="Bangalore" onchange="applyFilters()"><label for="loc-bangalore">Bangalore</label><span class="filter-count" id="count-bangalore">0</span></div>
             </div>
-
             <div class="filter-group">
                 <div class="filter-group-title">Language</div>
                 <div class="filter-option"><input type="checkbox" id="lang-english" value="English" onchange="applyFilters()"><label for="lang-english">English</label><span class="filter-count" id="count-english">0</span></div>
                 <div class="filter-option"><input type="checkbox" id="lang-hindi" value="Hindi" onchange="applyFilters()"><label for="lang-hindi">Hindi</label><span class="filter-count" id="count-hindi">0</span></div>
             </div>
-
             <div class="filter-group">
                 <div class="filter-group-title">Follower Range</div>
                 <div class="filter-option"><input type="checkbox" id="fol-micro" value="10k-50k" onchange="applyFilters()"><label for="fol-micro">10K - 50K</label></div>
@@ -152,6 +158,10 @@
                 <div class="filter-option"><input type="checkbox" id="fol-macro" value="100k-500k" onchange="applyFilters()"><label for="fol-macro">100K - 500K</label></div>
                 <div class="filter-option"><input type="checkbox" id="fol-mega" value="500k+" onchange="applyFilters()"><label for="fol-mega">500K+</label></div>
                 <div class="filter-option"><input type="checkbox" id="fol-celeb" value="1m+" onchange="applyFilters()"><label for="fol-celeb">1M+</label></div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-title">Verified</div>
+                <div class="filter-option"><input type="checkbox" id="verified-yes" value="Yes" onchange="applyFilters()"><label for="verified-yes">Verified Only</label></div>
             </div>
         </aside>
 
@@ -163,6 +173,7 @@
                         <option value="relevance">Sort by: Relevance</option>
                         <option value="followers-desc">Followers (High to Low)</option>
                         <option value="followers-asc">Followers (Low to High)</option>
+                        <option value="engagement-desc">Engagement (High to Low)</option>
                     </select>
                 </div>
                 <div class="loading" id="loading">Searching database...</div>
@@ -184,11 +195,34 @@
                 const json = JSON.parse(text.substr(47).slice(0, -2));
                 const rows = json.table.rows;
                 allInfluencers = rows.map(row => ({
-                    name: row.c[0]?.v || "", handle: row.c[1]?.v || "", followers: row.c[2]?.v || 0,
-                    category: row.c[3]?.v || "", location: row.c[4]?.v || "", language: row.c[5]?.v || "",
-                    brands: row.c[6]?.v || "", deal1: row.c[7]?.v || "", deal2: row.c[8]?.v || "",
-                    deal3: row.c[9]?.v || "", contentType: row.c[10]?.v || "", engagement: row.c[11]?.v || "",
-                    profileLink: row.c[12]?.v || ""
+                    name: row.c[0]?.v || "",
+                    handle: row.c[1]?.v || "",
+                    followers: row.c[2]?.v || 0,
+                    category: row.c[3]?.v || "",
+                    location: row.c[4]?.v || "",
+                    language: row.c[5]?.v || "",
+                    brands: row.c[6]?.v || "",
+                    deal1: row.c[7]?.v || "",
+                    deal2: row.c[8]?.v || "",
+                    deal3: row.c[9]?.v || "",
+                    contentType: row.c[10]?.v || "",
+                    engagement: row.c[11]?.v || "",
+                    profileLink: row.c[12]?.v || "",
+                    // NEW FIELDS
+                    bio: row.c[14]?.v || "",
+                    verified: row.c[15]?.v || "No",
+                    avgViews: row.c[16]?.v || 0,
+                    avgLikes: row.c[17]?.v || 0,
+                    avgComments: row.c[18]?.v || 0,
+                    postingFreq: row.c[19]?.v || "",
+                    primaryPlatform: row.c[20]?.v || "Instagram",
+                    secondaryPlatforms: row.c[21]?.v || "",
+                    reelsPct: row.c[22]?.v || 0,
+                    postsPct: row.c[23]?.v || 0,
+                    storiesPct: row.c[24]?.v || 0,
+                    audienceAge: row.c[25]?.v || "",
+                    audienceGender: row.c[26]?.v || "",
+                    audienceLocation: row.c[27]?.v || ""
                 }));
                 updateFilterCounts();
             } catch (error) { console.error("Error:", error); }
@@ -228,7 +262,7 @@
                 filteredInfluencers = allInfluencers.filter(inf =>
                     inf.name.toLowerCase().includes(query) || inf.handle.toLowerCase().includes(query) ||
                     inf.category.toLowerCase().includes(query) || inf.location.toLowerCase().includes(query) ||
-                    inf.brands.toLowerCase().includes(query)
+                    inf.brands.toLowerCase().includes(query) || inf.bio.toLowerCase().includes(query)
                 );
                 displayResults(filteredInfluencers);
             }, 500);
@@ -239,10 +273,13 @@
             const selectedLocations = Array.from(document.querySelectorAll('[id^="loc-"]:checked')).map(el => el.value);
             const selectedLanguages = Array.from(document.querySelectorAll('[id^="lang-"]:checked')).map(el => el.value);
             const selectedFollowerRanges = Array.from(document.querySelectorAll('[id^="fol-"]:checked')).map(el => el.value);
+            const verifiedOnly = document.getElementById('verified-yes')?.checked;
+            
             let results = [...filteredInfluencers];
             if (selectedCategories.length > 0) results = results.filter(inf => selectedCategories.includes(inf.category));
             if (selectedLocations.length > 0) results = results.filter(inf => selectedLocations.includes(inf.location));
             if (selectedLanguages.length > 0) results = results.filter(inf => selectedLanguages.includes(inf.language));
+            if (verifiedOnly) results = results.filter(inf => inf.verified === "Yes");
             if (selectedFollowerRanges.length > 0) {
                 results = results.filter(inf => {
                     const followers = parseInt(inf.followers);
@@ -260,7 +297,7 @@
         }
 
         function clearAllFilters() {
-            document.querySelectorAll('[id^="cat-"], [id^="loc-"], [id^="lang-"], [id^="fol-"]').forEach(el => el.checked = false);
+            document.querySelectorAll('[id^="cat-"], [id^="loc-"], [id^="lang-"], [id^="fol-"], #verified-yes').forEach(el => el.checked = false);
             displayResults(filteredInfluencers);
         }
 
@@ -268,6 +305,7 @@
             let sorted = [...filteredInfluencers];
             if (sortBy === "followers-desc") sorted.sort((a, b) => b.followers - a.followers);
             else if (sortBy === "followers-asc") sorted.sort((a, b) => a.followers - b.followers);
+            else if (sortBy === "engagement-desc") sorted.sort((a, b) => parseFloat(b.engagement) - parseFloat(a.engagement));
             displayResults(sorted);
         }
 
@@ -281,6 +319,28 @@
                 return;
             }
             grid.innerHTML = results.map(inf => {
+                let verifiedBadge = inf.verified === "Yes" ? '<span class="verified-badge">✓</span>' : '';
+                let bioHTML = inf.bio ? '<div class="influencer-bio">' + inf.bio + '</div>' : '';
+                
+                let contentBreakdown = '';
+                if (inf.reelsPct || inf.postsPct || inf.storiesPct) {
+                    contentBreakdown = `
+                        <div class="content-breakdown">
+                            <div class="content-breakdown-title">Content Breakdown</div>
+                            <div class="content-bars">
+                                ${inf.reelsPct ? '<div class="content-bar bar-reels" style="flex: ' + inf.reelsPct + '"></div>' : ''}
+                                ${inf.postsPct ? '<div class="content-bar bar-posts" style="flex: ' + inf.postsPct + '"></div>' : ''}
+                                ${inf.storiesPct ? '<div class="content-bar bar-stories" style="flex: ' + inf.storiesPct + '"></div>' : ''}
+                            </div>
+                            <div class="content-legend">
+                                ${inf.reelsPct ? '<div class="legend-item"><div class="legend-dot bar-reels"></div>Reels ' + inf.reelsPct + '%</div>' : ''}
+                                ${inf.postsPct ? '<div class="legend-item"><div class="legend-dot bar-posts"></div>Posts ' + inf.postsPct + '%</div>' : ''}
+                                ${inf.storiesPct ? '<div class="legend-item"><div class="legend-dot bar-stories"></div>Stories ' + inf.storiesPct + '%</div>' : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+                
                 let brandsHTML = "";
                 if (inf.brands) {
                     const brandList = inf.brands.split(",").map(b => b.trim()).filter(b => b);
@@ -295,19 +355,48 @@
                     dealsHTML = '<div class="recent-deals"><div class="brand-section-title">Recent Deals</div>' +
                         deals.map(deal => '<div class="deal-item">• ' + deal + '</div>').join("") + '</div>';
                 }
-                return '<div class="influencer-card"><div class="influencer-name">' + inf.name + '</div>' +
-                    '<a href="' + inf.profileLink + '" target="_blank" class="influencer-handle">' + inf.handle + '</a>' +
-                    '<div class="influencer-stats"><div class="stat"><div class="stat-label">Followers</div><div class="stat-value">' + formatNumber(inf.followers) + '</div></div>' +
-                    '<div class="stat"><div class="stat-label">Location</div><div class="stat-value">' + inf.location + '</div></div>' +
-                    '<div class="stat"><div class="stat-label">Engagement</div><div class="stat-value">' + inf.engagement + '</div></div></div>' +
-                    '<div class="influencer-category">' + inf.category + '</div>' + brandsHTML + dealsHTML + '</div>';
+                
+                return `
+                    <div class="influencer-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="influencer-name">${inf.name}</div>
+                                <a href="${inf.profileLink}" target="_blank" class="influencer-handle">${inf.handle}</a>
+                            </div>
+                            ${verifiedBadge}
+                        </div>
+                        ${bioHTML}
+                        <div class="influencer-stats">
+                            <div class="stat">
+                                <div class="stat-label">Followers</div>
+                                <div class="stat-value">${formatNumber(inf.followers)}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Avg Likes</div>
+                                <div class="stat-value">${formatNumber(inf.avgLikes)}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Location</div>
+                                <div class="stat-value">${inf.location}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Engagement</div>
+                                <div class="stat-value">${inf.engagement}</div>
+                            </div>
+                        </div>
+                        <div class="influencer-category">${inf.category}</div>
+                        ${contentBreakdown}
+                        ${brandsHTML}
+                        ${dealsHTML}
+                    </div>
+                `;
             }).join("");
         }
 
         function formatNumber(num) {
             if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
             if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-            return num;
+            return num || "-";
         }
 
         document.getElementById("searchInput").addEventListener("keypress", function(e) { if (e.key === "Enter") performSearch(); });
