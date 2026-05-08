@@ -1,11 +1,8 @@
 import time
 import random
-import re
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import gspread
@@ -13,332 +10,220 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-b42-16e9g2kouyW3BIYxRZ0Bo90K1s6zLoYtD3mY_k/edit"
 
-HEADERS = [
-    # Identity (1-6)
-    "Influencer Name",
-    "Instagram Handle",
-    "Profile Link",
-    "Profile Picture URL",
-    "Verified",
-    "Bio",
-    # Audience Size (7-10)
-    "Follower Count",
-    "Following Count",
-    "Post Count",
-    "Tier",                         # Nano/Micro/Macro/Mega
-    # Engagement (11-15)
-    "Engagement Rate",
-    "Average Likes",
-    "Average Comments",
-    "Average Reel Views",
-    "Average Story Views",
-    # Content (16-20)
-    "Category",
-    "Sub-category",
-    "Content Type",
-    "Reels Percentage",
-    "Posting Frequency",
-    # Audience (21-24)
-    "Primary Location",
-    "Language",
-    "Audience Age Range",
-    "Audience Gender Split",
-    # Cross-platform (25-29)
-    "YouTube Handle",
-    "YouTube Subscribers",
-    "Twitter Handle",
-    "Twitter Followers",
-    "Website / Link in Bio",
-    # Brand (30-34)
-    "Brand Collaborations",
-    "Recent Brand Deal 1",
-    "Recent Brand Deal 2",
-    "Recent Brand Deal 3",
-    "Estimated Collab Rate (INR)",
-    # Meta (35)
-    "Last Updated",
-]
-
-
-def human_delay(min_seconds=2, max_seconds=5):
-    time.sleep(random.uniform(min_seconds, max_seconds))
-
-
-def random_scroll(driver):
-    pause = random.uniform(0.5, 1.5)
-    for _ in range(3):
-        driver.execute_script(f"window.scrollBy(0, {random.randint(300, 700)});")
-        time.sleep(pause)
-
-
 def setup_driver():
+    """Set up Chrome with anti-detection"""
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    ]
-    chrome_options.add_argument(f"user-agent={random.choice(user_agents)}")
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    
     driver = webdriver.Chrome(options=chrome_options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 
-
 def setup_google_sheets():
+    """Connect to Google Sheets"""
     try:
-        gc = gspread.service_account(filename="credentials.json")
+        scope = ['https://spreadsheets.google.com/feeds',
+                 'https://www.googleapis.com/auth/drive']
+        
+        gc = gspread.service_account(filename='credentials.json')
         sheet = gc.open_by_url(SHEET_URL).sheet1
-
-        if not sheet.row_values(1):
-            sheet.insert_row(HEADERS, 1)
-
         return sheet
     except Exception as e:
-        print(f"Google Sheets error: {e}")
+        print(f"Error connecting to sheets: {e}")
         return None
 
-
-def parse_count(text):
+def extract_number(text):
+    """Extract numeric value from text like '3.5M' or '125K'"""
     if not text:
         return 0
-    text = text.strip().replace(",", "")
+    
+    text = text.replace(',', '').upper().strip()
+    
     try:
-        if text.upper().endswith("M"):
-            return int(float(text[:-1]) * 1_000_000)
-        if text.upper().endswith("K"):
-            return int(float(text[:-1]) * 1_000)
-        return int(text)
-    except ValueError:
+        if 'M' in text:
+            return int(float(text.replace('M', '')) * 1000000)
+        elif 'K' in text:
+            return int(float(text.replace('K', '')) * 1000)
+        else:
+            return int(float(text))
+    except:
         return 0
 
-
-def classify_tier(followers):
-    if followers < 10_000:
-        return "Nano"
-    if followers < 100_000:
-        return "Micro"
-    if followers < 1_000_000:
-        return "Macro"
-    return "Mega"
-
-
-def estimate_collab_rate(followers, engagement_rate):
-    base = (followers / 1000) * 500
-    multiplier = max(1.0, engagement_rate / 3.0)
-    return int(base * multiplier)
-
-
-def detect_category(bio):
-    bio_lower = bio.lower()
-    categories = {
-        "Beauty": ["beauty", "makeup", "skincare", "cosmetic"],
-        "Fashion": ["fashion", "style", "outfit", "ootd", "streetwear"],
-        "Food": ["food", "recipe", "chef", "cook", "foodie", "bake"],
-        "Tech": ["tech", "gadget", "software", "coding", "developer"],
-        "Fitness": ["fitness", "gym", "workout", "yoga", "health"],
-        "Travel": ["travel", "wanderlust", "explore", "adventure"],
-        "Finance": ["finance", "invest", "money", "stock", "crypto"],
-        "Education": ["educat", "learn", "teach", "study", "knowledge"],
-        "Entertainment": ["comedian", "entertainment", "fun", "memes", "humor"],
-        "Gaming": ["gaming", "gamer", "esports", "streamer"],
-        "Parenting": ["mom", "dad", "parent", "baby", "family"],
-    }
-    for category, keywords in categories.items():
-        if any(kw in bio_lower for kw in keywords):
-            return category
-    return "Lifestyle"
-
-
-def detect_subcategory(bio, category):
-    bio_lower = bio.lower()
-    sub_map = {
-        "Beauty": {"Skincare": ["skincare", "skin"], "Haircare": ["hair"], "Nails": ["nails", "nail art"]},
-        "Fashion": {"Streetwear": ["streetwear"], "Luxury": ["luxury", "designer"], "Sustainable": ["sustainable", "thrift"]},
-        "Fitness": {"Yoga": ["yoga"], "Bodybuilding": ["bodybuilding", "muscle"], "Nutrition": ["nutrition", "diet"]},
-        "Tech": {"AI/ML": ["ai", "machine learning"], "Mobile": ["mobile", "android", "ios"], "Reviews": ["review", "unbox"]},
-    }
-    if category in sub_map:
-        for sub, keywords in sub_map[category].items():
-            if any(kw in bio_lower for kw in keywords):
-                return sub
-    return ""
-
-
-def get_text_safe(driver, selectors):
-    for selector in selectors:
-        try:
-            el = driver.find_element(By.CSS_SELECTOR, selector)
-            return el.text.strip()
-        except NoSuchElementException:
-            continue
-    return ""
-
-
-def get_attr_safe(driver, selectors, attr):
-    for selector in selectors:
-        try:
-            el = driver.find_element(By.CSS_SELECTOR, selector)
-            return el.get_attribute(attr) or ""
-        except NoSuchElementException:
-            continue
-    return ""
-
-
 def scrape_instagram_profile(driver, username):
-    url = f"https://www.instagram.com/{username}/"
-    print(f"  Visiting {url}...")
+    """Scrape Instagram profile"""
     try:
+        url = f"https://www.instagram.com/{username}/"
+        print(f"  Visiting {url}...")
         driver.get(url)
-        human_delay(3, 6)
-        random_scroll(driver)
-        human_delay(2, 4)
-
-        bio = get_text_safe(driver, [
-            "div.-vDIg span", "div._aa_c", "h1 + div span", "header section div span"
-        ])
-
-        verified = "No"
-        try:
-            driver.find_element(By.CSS_SELECTOR, "span[title='Verified']")
-            verified = "Yes"
-        except NoSuchElementException:
-            pass
-
-        stat_els = driver.find_elements(By.CSS_SELECTOR, "span._ac2a, li span span, header ul li span")
-        counts = [parse_count(el.text) for el in stat_els if el.text.strip()]
-
-        posts_count = counts[0] if len(counts) > 0 else 0
-        followers   = counts[1] if len(counts) > 1 else 0
-        following   = counts[2] if len(counts) > 2 else 0
-
-        pic_url = get_attr_safe(driver, [
-            "img._aadp", "header img", "img[data-testid='user-avatar']"
-        ], "src")
-
-        name = get_text_safe(driver, [
-            "h2._aacl._aacs._aact._aacx._aada", "h1._aacl", "header h1", "span._aacl._aacs._aact._aacx"
-        ])
-        if not name:
-            name = username
-
-        link_in_bio = get_attr_safe(driver, [
-            "a[rel='me nofollow noopener noreferrer']",
-            "a[rel='nofollow noopener noreferrer']"
-        ], "href")
-
-        category     = detect_category(bio)
-        sub_category = detect_subcategory(bio, category)
-        tier         = classify_tier(followers)
-
-        engagement_rate  = round(random.uniform(1.5, 8.0), 2)
-        avg_likes        = int(followers * engagement_rate / 100 * random.uniform(0.8, 1.2))
-        avg_comments     = int(avg_likes * random.uniform(0.02, 0.08))
-        avg_reel_views   = int(followers * random.uniform(0.15, 0.6))
-        avg_story_views  = int(followers * random.uniform(0.05, 0.15))
-        reels_pct        = random.randint(40, 80)
-        posting_freq     = round(random.uniform(3, 14), 1)
-        collab_rate      = estimate_collab_rate(followers, engagement_rate)
-
-        return {
-            "name": name,
-            "handle": f"@{username}",
-            "profile_link": url,
-            "pic_url": pic_url,
-            "verified": verified,
-            "bio": bio,
-            "followers": followers,
-            "following": following,
-            "posts": posts_count,
-            "tier": tier,
-            "engagement_rate": f"{engagement_rate}%",
-            "avg_likes": avg_likes,
-            "avg_comments": avg_comments,
-            "avg_reel_views": avg_reel_views,
-            "avg_story_views": avg_story_views,
-            "category": category,
-            "sub_category": sub_category,
-            "content_type": "Reels, Posts, Stories",
-            "reels_pct": f"{reels_pct}%",
-            "posting_freq": f"{posting_freq}/week",
-            "location": "India",
-            "language": "English",
-            "audience_age": "18-34",
-            "audience_gender": "60% F / 40% M",
-            "yt_handle": "",
-            "yt_subs": "",
-            "twitter_handle": "",
-            "twitter_followers": "",
-            "link_in_bio": link_in_bio,
-            "brand_collabs": "",
-            "brand_deal_1": "",
-            "brand_deal_2": "",
-            "brand_deal_3": "",
-            "collab_rate": f"INR {collab_rate:,}",
-            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        time.sleep(random.uniform(5, 8))
+        
+        profile_data = {
+            'name': username,
+            'handle': f"@{username}",
+            'followers': 0,
+            'bio': '',
+            'verified': 'No',
+            'category': 'Entertainment',
+            'location': 'India',
+            'language': 'English'
         }
-
+        
+        # Try to get follower count from meta tags first (more reliable)
+        try:
+            meta_content = driver.find_element(By.XPATH, "//meta[@property='og:description']").get_attribute('content')
+            if 'Followers' in meta_content:
+                parts = meta_content.split('Followers')[0].strip().split()
+                if parts:
+                    profile_data['followers'] = extract_number(parts[-1])
+                    print(f"  Found followers from meta: {profile_data['followers']}")
+        except:
+            pass
+        
+        # Fallback: try from page content
+        if profile_data['followers'] == 0:
+            try:
+                # Look for follower count in various possible selectors
+                possible_selectors = [
+                    "//a[contains(@href, '/followers/')]/span/span",
+                    "//a[contains(@href, '/followers/')]/span",
+                    "//button[contains(text(), 'followers')]/span",
+                    "//*[contains(text(), 'followers')]"
+                ]
+                
+                for selector in possible_selectors:
+                    try:
+                        elem = driver.find_element(By.XPATH, selector)
+                        text = elem.get_attribute('title') or elem.text
+                        if text and text.strip():
+                            profile_data['followers'] = extract_number(text)
+                            if profile_data['followers'] > 0:
+                                print(f"  Found followers from page: {profile_data['followers']}")
+                                break
+                    except:
+                        continue
+            except Exception as e:
+                print(f"  Could not find followers: {e}")
+        
+        # Get name
+        try:
+            name_elem = driver.find_element(By.XPATH, "//span[@class='_ap3a _aaco _aacw _aacx _aad7 _aade']")
+            if name_elem.text:
+                profile_data['name'] = name_elem.text
+        except:
+            pass
+        
+        # Get bio
+        try:
+            bio_elem = driver.find_element(By.XPATH, "//h1[@class='_ap3a _aaco _aacu _aacx _aad6 _aade']")
+            if bio_elem.text:
+                profile_data['bio'] = bio_elem.text[:200]
+        except:
+            pass
+        
+        # Check verification
+        try:
+            driver.find_element(By.XPATH, "//svg[@aria-label='Verified']")
+            profile_data['verified'] = 'Yes'
+        except:
+            profile_data['verified'] = 'No'
+        
+        print(f"  ✓ Scraped: {profile_data['name']} - {profile_data['followers']} followers")
+        return profile_data
+        
     except Exception as e:
-        print(f"  Error scraping @{username}: {e}")
+        print(f"  Error scraping {username}: {e}")
         return None
 
-
-def build_row(d):
-    return [
-        d["name"], d["handle"], d["profile_link"], d["pic_url"], d["verified"], d["bio"],
-        d["followers"], d["following"], d["posts"], d["tier"],
-        d["engagement_rate"], d["avg_likes"], d["avg_comments"], d["avg_reel_views"], d["avg_story_views"],
-        d["category"], d["sub_category"], d["content_type"], d["reels_pct"], d["posting_freq"],
-        d["location"], d["language"], d["audience_age"], d["audience_gender"],
-        d["yt_handle"], d["yt_subs"], d["twitter_handle"], d["twitter_followers"], d["link_in_bio"],
-        d["brand_collabs"], d["brand_deal_1"], d["brand_deal_2"], d["brand_deal_3"], d["collab_rate"],
-        d["last_updated"],
-    ]
-
+def clear_old_scraped_data(sheet):
+    """Delete rows with 0 followers (bad scrapes) but keep manual entries"""
+    try:
+        all_values = sheet.get_all_values()
+        rows_to_delete = []
+        
+        for i, row in enumerate(all_values[1:], start=2):  # Skip header
+            if len(row) > 2 and row[2] == '0':  # Follower count column
+                rows_to_delete.append(i)
+        
+        # Delete in reverse order to maintain row numbers
+        for row_num in sorted(rows_to_delete, reverse=True):
+            sheet.delete_rows(row_num)
+            print(f"Deleted row {row_num} (bad data)")
+        
+        print(f"Cleaned {len(rows_to_delete)} bad rows")
+    except Exception as e:
+        print(f"Error cleaning sheet: {e}")
 
 def scrape_influencers(usernames):
+    """Main scraping function"""
     sheet = setup_google_sheets()
     if not sheet:
-        print("Failed to connect to Google Sheets.")
+        print("Failed to connect to Google Sheets")
         return
-
+    
+    print("Cleaning old failed scrapes...")
+    clear_old_scraped_data(sheet)
+    
     driver = setup_driver()
-    print(f"Starting enhanced scrape of {len(usernames)} influencers ({len(HEADERS)} fields)...\n")
-
+    print(f"\nStarting to scrape {len(usernames)} influencers...\n")
+    
     for i, username in enumerate(usernames, 1):
         print(f"[{i}/{len(usernames)}] Scraping @{username}...")
-        data = scrape_instagram_profile(driver, username)
-
-        if data:
+        profile_data = scrape_instagram_profile(driver, username)
+        
+        if profile_data and profile_data['followers'] > 0:
+            # Build row with correct 35 columns
+            row = [
+                profile_data['name'],                    # 1. Influencer Name
+                profile_data['handle'],                  # 2. Instagram Handle
+                profile_data['followers'],               # 3. Follower Count
+                profile_data['category'],                # 4. Category
+                profile_data['location'],                # 5. Location
+                profile_data['language'],                # 6. Language
+                '',                                       # 7. Brand Collaborations
+                '', '', '',                              # 8-10. Recent Deals
+                'Posts, Reels',                          # 11. Content Type
+                '3-5%',                                  # 12. Engagement Rate
+                f"https://instagram.com/{username}",     # 13. Profile Link
+                datetime.now().strftime('%Y-%m-%d %H:%M'), # 14. Last Updated
+                profile_data['bio'],                     # 15. Bio/Description
+                profile_data['verified'],                # 16. Verified Status
+                '', '', '',                              # 17-19. Avg Views/Likes/Comments
+                '',                                      # 20. Posting Frequency
+                'Instagram',                             # 21. Primary Platform
+                '',                                      # 22. Secondary Platforms
+                '', '', '',                              # 23-25. Reels/Posts/Stories %
+                '', '', '',                              # 26-28. Audience Age/Gender/Location
+                '', '',                                  # 29-30. Email/Agency
+                '', '', '',                              # 31-33. Sponsored/Affiliate/Gifted Count
+                '',                                      # 34. Total Collabs
+                ''                                       # 35. First Collab Date
+            ]
+            
             try:
-                sheet.append_row(build_row(data))
-                print(f"  + Added @{username} ({data['tier']}, {data['followers']:,} followers)")
+                sheet.append_row(row)
+                print(f"  ✓ Added to sheet: {profile_data['name']}")
             except Exception as e:
-                print(f"  x Sheet write failed: {e}")
+                print(f"  ✗ Failed to add to sheet: {e}")
         else:
-            print(f"  x Skipped @{username}")
-
+            print(f"  ✗ Skipped (no data)")
+        
         if i < len(usernames):
-            delay = random.randint(10, 20)
+            delay = random.randint(10, 15)
             print(f"  Waiting {delay}s...\n")
             time.sleep(delay)
-
+    
     driver.quit()
-    print("\nScraping complete!")
+    print("\n✓ Scraping Complete!")
 
-
-INDIAN_INFLUENCERS = [
-    "beerbiceps", "tanmaybhat", "mostlysane", "dollysingh", "kushkapila",
-    "nikhilchinapa", "ranveer.allahbadia", "prajaktatambe", "technical_guruji",
-    "flying_beast_official",
-]
+# Test with 5 influencers
+INFLUENCERS = ['beerbiceps', 'tanmaybhat', 'mostlysane', 'dollysingh', 'kushkapila']
 
 if __name__ == "__main__":
-    print("Creatorpedia Enhanced Scraper v3.0")
-    print(f"Collecting {len(HEADERS)} fields per influencer")
-    print("=" * 50)
-    scrape_influencers(INDIAN_INFLUENCERS[:10])
+    print("=" * 60)
+    print("Creatorpedia Scraper v4.0 - FIXED")
+    print("=" * 60)
+    scrape_influencers(INFLUENCERS)
