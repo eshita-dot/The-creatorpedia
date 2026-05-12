@@ -2,13 +2,11 @@ import time
 import random
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException
 import gspread
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-b42-16e9g2kouyW3BIYxRZ0Bo90K1s6zLoYtD3mY_k/edit"
@@ -27,8 +25,8 @@ def get_cutoff_date():
 # Hashtag signals for collaboration type detection
 SPONSORED_TAGS = {'#ad', '#sponsored', '#paidpartnership', '#partnership', '#collab',
                   '#collaboration', '#brandambassador', '#promo', '#promotion'}
-GIFTED_TAGS    = {'#gifted', '#giftedbybrand', '#pr', '#prsample', '#complimentary', '#gifted'}
-AFFILIATE_TAGS = {'#affiliate', '#affiliatelink', '#commissionearned', '#ad'}
+GIFTED_TAGS    = {'#gifted', '#giftedbybrand', '#pr', '#prsample', '#complimentary'}
+AFFILIATE_TAGS = {'#affiliate', '#affiliatelink', '#commissionearned'}
 
 # Known large brand account patterns to skip when extracting @mentions
 SKIP_ACCOUNTS  = {'instagram', 'meta', 'reels', 'explore', 'shopping'}
@@ -142,7 +140,11 @@ def detect_category(bio):
 
 
 def get_profile_data(driver, username):
-    """Scrape basic profile info from ld+json or _sharedData."""
+    """Scrape basic profile info from ld+json or _sharedData.
+    NOTE: Instagram blocks most content without a logged-in session.
+    If follower count is 0 and bio is empty, the scraper hit the login wall.
+    Fix: inject sessionid cookie via driver.add_cookie() before scraping.
+    """
     url = f"https://www.instagram.com/{username}/"
     print(f"  Loading profile {url}...")
     driver.get(url)
@@ -201,7 +203,7 @@ def collect_all_post_links(driver, username):
     ordered = []
     last_height = 0
     stale_scrolls = 0
-    MAX_STALE = 3   # stop after 3 scrolls with no new height
+    MAX_STALE = 5   # stop after 5 scrolls with no new height (Instagram loads slowly)
 
     print(f"  Scrolling profile to collect post links...")
     while stale_scrolls < MAX_STALE and len(ordered) < 6000:
@@ -215,7 +217,7 @@ def collect_all_post_links(driver, username):
                     ordered.append(clean)
 
         driver.execute_script("window.scrollBy(0, 1200);")
-        time.sleep(random.uniform(1.5, 2.5))
+        time.sleep(random.uniform(3.0, 4.0))  # longer wait for Instagram lazy-load
 
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height:
