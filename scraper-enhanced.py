@@ -2,7 +2,7 @@ import time
 import random
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -12,6 +12,17 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import gspread
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-b42-16e9g2kouyW3BIYxRZ0Bo90K1s6zLoYtD3mY_k/edit"
+
+YEARS_BACK = 3  # how far back to check posts
+
+def get_cutoff_date():
+    """Return YYYY-MM-DD string for YEARS_BACK years ago."""
+    today = datetime.now()
+    try:
+        cutoff = today.replace(year=today.year - YEARS_BACK)
+    except ValueError:  # Feb 29 in non-leap year
+        cutoff = today.replace(year=today.year - YEARS_BACK, day=28)
+    return cutoff.strftime('%Y-%m-%d')
 
 # Hashtag signals for collaboration type detection
 SPONSORED_TAGS = {'#ad', '#sponsored', '#paidpartnership', '#partnership', '#collab',
@@ -177,28 +188,44 @@ def get_profile_data(driver, username):
     return data
 
 
-def collect_post_links(driver, username, max_posts=30):
-    """Scroll the profile grid and collect post URLs."""
-    post_links = set()
-    scroll_attempts = 0
+def collect_all_post_links(driver, username):
+    """
+    Scroll the profile grid until no new posts load, collecting every post URL.
+    Posts are returned in discovery order (newest first, as Instagram renders them).
+    Caps at 500 scrolls (~6 000 posts) as a safety limit.
+    """
+    driver.get(f"https://www.instagram.com/{username}/")
+    time.sleep(random.uniform(3, 5))
 
-    while len(post_links) < max_posts and scroll_attempts < 8:
+    seen = set()
+    ordered = []
+    last_height = 0
+    stale_scrolls = 0
+    MAX_STALE = 3   # stop after 3 scrolls with no new height
+
+    print(f"  Scrolling profile to collect post links...")
+    while stale_scrolls < MAX_STALE and len(ordered) < 6000:
         anchors = driver.find_elements(By.XPATH, "//a[contains(@href, '/p/')]")
         for a in anchors:
             href = a.get_attribute('href')
             if href and '/p/' in href:
-                post_links.add(href.split('?')[0])
+                clean = href.split('?')[0]
+                if clean not in seen:
+                    seen.add(clean)
+                    ordered.append(clean)
 
-        if len(post_links) >= max_posts:
-            break
+        driver.execute_script("window.scrollBy(0, 1200);")
+        time.sleep(random.uniform(1.5, 2.5))
 
-        driver.execute_script("window.scrollBy(0, 800);")
-        time.sleep(random.uniform(1.5, 3.0))
-        scroll_attempts += 1
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            stale_scrolls += 1
+        else:
+            stale_scrolls = 0
+            last_height = new_height
 
-    links = list(post_links)[:max_posts]
-    print(f"  Found {len(links)} posts to check")
-    return links
+    print(f"  Collected {len(ordered)} post links in total")
+    return ordered
 
 
 def analyse_post(driver, post_url):
@@ -289,13 +316,15 @@ def analyse_post(driver, post_url):
         return {'brand': '', 'collab_type': '', 'date': ''}
 
 
-def scrape_brand_collabs(driver, username, max_posts=30):
+def scrape_brand_collabs(driver, username):
     """
-    Visit posts and compile brand collaboration data.
-    Returns dict with brands list, counts, and recent deals.
+    Visit every post from the last YEARS_BACK years and compile brand collaboration data.
+    Stops as soon as a post's date falls before the cutoff.
     """
-    print(f"  Scrolling posts for brand collabs...")
-    post_links = collect_post_links(driver, username, max_posts)
+    cutoff = get_cutoff_date()
+    print(f"  Checking posts since {cutoff} (last {YEARS_BACK} years)...")
+
+    post_links = collect_all_post_links(driver, username)
 
     all_brands   = []
     sponsored    = []
@@ -308,6 +337,11 @@ def scrape_brand_collabs(driver, username, max_posts=30):
         ctype  = result['collab_type']
         brand  = result['brand']
         date   = result['date']
+
+        # Stop as soon as we hit a post older than the cutoff
+        if date and date < cutoff:
+            print(f"  Stopped at post {idx} — date {date} is before cutoff {cutoff}")
+            break
 
         if ctype == 'sponsored':
             sponsored.append(brand or 'Unknown Brand')
@@ -353,7 +387,7 @@ def scrape_brand_collabs(driver, username, max_posts=30):
     }
 
 
-def scrape_influencers(usernames, max_posts=30):
+def scrape_influencers(usernames):
     sheet = setup_google_sheets()
     if not sheet:
         return
@@ -374,7 +408,7 @@ def scrape_influencers(usernames, max_posts=30):
         profile = get_profile_data(driver, username)
 
         # Step 2: brand collaboration data
-        collab = scrape_brand_collabs(driver, username, max_posts)
+        collab = scrape_brand_collabs(driver, username)
 
         followers = profile['followers']
         bio       = profile['bio']
@@ -447,6 +481,7 @@ INFLUENCERS = [
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Creatorpedia Brand Collaboration Scraper v6.0")
+    print("Creatorpedia Brand Collaboration Scraper v6.1")
+    print(f"Checking posts from last {YEARS_BACK} years")
     print("=" * 60)
-    scrape_influencers(INFLUENCERS, max_posts=30)
+    scrape_influencers(INFLUENCERS)
