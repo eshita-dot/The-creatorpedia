@@ -2,14 +2,14 @@ import time
 import random
 import json
 import re
+import requests
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
-import gspread
 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1-b42-16e9g2kouyW3BIYxRZ0Bo90K1s6zLoYtD3mY_k/edit"
+CONVEX_SITE_URL = "https://unique-fox-832.convex.site"
 
 YEARS_BACK = 3  # how far back to check posts
 
@@ -85,24 +85,6 @@ def setup_driver():
     return driver
 
 
-def setup_google_sheets():
-    try:
-        gc = gspread.service_account(filename='credentials.json')
-        sheet = gc.open_by_url(SHEET_URL).sheet1
-        return sheet
-    except Exception as e:
-        print(f"Sheet error: {e}")
-        return None
-
-
-def reset_headers(sheet):
-    try:
-        sheet.clear()
-        sheet.update('A1', [HEADERS])
-        print("✓ Headers set")
-    except Exception as e:
-        print(f"Header error: {e}")
-
 
 def extract_number(text):
     if not text:
@@ -140,53 +122,39 @@ def detect_category(bio):
 
 
 def get_profile_data(driver, username):
-    """Scrape basic profile info from ld+json or _sharedData.
-    NOTE: Instagram blocks most content without a logged-in session.
-    If follower count is 0 and bio is empty, the scraper hit the login wall.
-    Fix: inject sessionid cookie via driver.add_cookie() before scraping.
-    """
+    """Scrape basic profile info from og/meta tags (works without login)."""
     url = f"https://www.instagram.com/{username}/"
     print(f"  Loading profile {url}...")
     driver.get(url)
     time.sleep(random.uniform(4, 7))
 
-    data = {
-        'name': username, 'followers': 0,
-        'bio': '', 'verified': 'No',
-    }
-
+    data = {'name': username, 'followers': 0, 'bio': '', 'verified': 'No'}
     page_source = driver.page_source
 
-    # Try ld+json (structured data)
-    json_match = re.search(r'<script type="application/ld\+json">(.+?)</script>', page_source, re.DOTALL)
-    if json_match:
-        try:
-            ld = json.loads(json_match.group(1))
-            data['name'] = ld.get('name', username)
-            data['bio']  = (ld.get('description', '') or '')[:200]
-            data['verified'] = 'Yes' if 'isVerified' in page_source else 'No'
-            for stat in ld.get('interactionStatistic', []):
-                if 'FollowAction' in stat.get('interactionType', ''):
-                    data['followers'] = int(stat.get('userInteractionCount', 0))
-                    break
-        except Exception:
-            pass
+    # og:title -> "Raj Shamani (@rajshamani) * Instagram photos and videos"
+    title_m = re.search(r'<meta property="og:title" content="([^"]+)"', page_source)
+    if title_m:
+        name_m = re.match(r'^(.+?)\s*\(@', title_m.group(1))
+        if name_m:
+            data['name'] = name_m.group(1).strip()
 
-    # Fallback: _sharedData
-    if data['followers'] == 0:
-        sd_match = re.search(r'window\._sharedData\s*=\s*({.+?});</script>', page_source, re.DOTALL)
-        if sd_match:
-            try:
-                sd = json.loads(sd_match.group(1))
-                user = sd['entry_data']['ProfilePage'][0]['graphql']['user']
-                data['name']      = user.get('full_name') or username
-                data['followers'] = user['edge_followed_by']['count']
-                data['bio']       = (user.get('biography', '') or '')[:200]
-                data['verified']  = 'Yes' if user.get('is_verified') else 'No'
-            except Exception:
-                pass
+    # og:description -> "8M Followers, ... - See Instagram ..." (no embedded quotes, reliable)
+    og_desc_m = re.search(r'<meta property="og:description" content="([^"]+)"', page_source)
+    if og_desc_m:
+        desc = og_desc_m.group(1)
+        foll_m = re.search(r'([\d.]+[KMBkmb]?)\s*[Ff]ollowers', desc)
+        if foll_m:
+            data['followers'] = extract_number(foll_m.group(1))
 
-    print(f"  ✓ Profile: {data['name']} — {data['followers']:,} followers")
+    # description meta has the real bio (HTML-entity encoded)
+    bio_m = re.search(r'<meta content="[^"]*on Instagram:\s*&quot;(.+?)&quot;', page_source)
+    if bio_m:
+        raw = bio_m.group(1)
+        raw = raw.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&#39;', "'")
+        data['bio'] = raw[:200]
+
+    data['verified'] = 'Yes' if '"is_verified":true' in page_source else 'No'
+    print(f"  + Profile: {data['name']} -- {data['followers']:,} followers")
     return data
 
 
@@ -273,20 +241,13 @@ def analyse_post(driver, post_url):
             except NoSuchElementException:
                 pass
 
-        # 3. Caption hashtag analysis
+        # 3. Caption from og:description (works without login, no CSS class churn)
         caption = ''
-        caption_selectors = [
-            "//div[@class='_a9zs']//span",
-            "//div[contains(@class,'_a9zr')]//span",
-            "//article//div[@role='button']//span",
-        ]
-        for sel in caption_selectors:
-            try:
-                el = driver.find_element(By.XPATH, sel)
-                caption = el.text.lower()
-                break
-            except NoSuchElementException:
-                continue
+        cap_m = re.search(r'<meta property="og:description" content="([^"]+)"', page)
+        if cap_m:
+            raw = cap_m.group(1)
+            raw = raw.replace('&quot;', '"').replace('&amp;', '&').replace('&#39;', "'")
+            caption = raw.lower()
 
         if caption and not collab_type:
             caption_tags = set(re.findall(r'#\w+', caption))
@@ -297,19 +258,20 @@ def analyse_post(driver, post_url):
             elif caption_tags & AFFILIATE_TAGS:
                 collab_type = 'affiliate'
 
-            # Extract @mention as brand name when no paid-partnership label found
             if collab_type and not brand:
                 mentions = re.findall(r'@(\w+)', caption)
                 candidates = [m for m in mentions if m.lower() not in SKIP_ACCOUNTS]
                 if candidates:
-                    brand = candidates[0]  # first mention most likely the brand
+                    brand = candidates[0]
 
         # 4. Post date from <time> element
         try:
             time_el = driver.find_element(By.XPATH, "//time[@datetime]")
             date_str = time_el.get_attribute('datetime')[:10]
         except NoSuchElementException:
-            pass
+            date_m = re.search(r'"upload_date":"(\d{4}-\d{2}-\d{2})"', page)
+            if date_m:
+                date_str = date_m.group(1)
 
         return {'brand': brand, 'collab_type': collab_type, 'date': date_str}
 
@@ -389,16 +351,27 @@ def scrape_brand_collabs(driver, username):
     }
 
 
+def post_to_convex(name, handle, niche, brand_collabs):
+    payload = {
+        "name": name,
+        "handle": handle,
+        "niche": niche,
+        "brandCollabs": brand_collabs,
+    }
+    try:
+        res = requests.post(
+            f"{CONVEX_SITE_URL}/add-influencer",
+            json=payload,
+            timeout=15,
+        )
+        res.raise_for_status()
+        return res.json()
+    except Exception as e:
+        print(f"  ✗ Convex write failed: {e}")
+        return None
+
+
 def scrape_influencers(usernames):
-    sheet = setup_google_sheets()
-    if not sheet:
-        return
-
-    print("\n" + "=" * 60)
-    print("RESETTING SHEET HEADERS...")
-    reset_headers(sheet)
-    print("=" * 60 + "\n")
-
     driver = setup_driver()
     success = 0
 
@@ -406,63 +379,34 @@ def scrape_influencers(usernames):
         print(f"\n[{i}/{len(usernames)}] @{username}")
         print("-" * 40)
 
-        # Step 1: profile data
         profile = get_profile_data(driver, username)
+        collab  = scrape_brand_collabs(driver, username)
 
-        # Step 2: brand collaboration data
-        collab = scrape_brand_collabs(driver, username)
+        bio      = profile['bio']
+        niche    = detect_category(bio)
 
-        followers = profile['followers']
-        bio       = profile['bio']
-        category  = detect_category(bio)
+        # Build structured brand collab list
+        brand_collabs = []
+        brand_names = [b.strip() for b in collab['brands'].split(',') if b.strip()]
+        for brand in brand_names:
+            brand_collabs.append({
+                "brandName": brand,
+                "dealType": "sponsored",
+                "date": collab['first_collab'] or None,
+            })
 
-        # Rough engagement estimate (placeholder — real calc needs post like counts)
-        eng_rate = f"{round(random.uniform(1.5, 6.0), 1)}%"
+        result = post_to_convex(
+            name=profile['name'],
+            handle=username,
+            niche=niche,
+            brand_collabs=brand_collabs,
+        )
 
-        row = [
-            profile['name'],                              # 0  Influencer Name
-            f"@{username}",                               # 1  Instagram Handle
-            followers,                                    # 2  Follower Count
-            category,                                     # 3  Category
-            'India',                                      # 4  Location
-            'English',                                    # 5  Language
-            collab['brands'],                             # 6  Brand Collaborations ← key field
-            collab['deal1'],                              # 7  Recent Brand Deal 1
-            collab['deal2'],                              # 8  Recent Brand Deal 2
-            collab['deal3'],                              # 9  Recent Brand Deal 3
-            'Posts, Reels',                               # 10 Content Type
-            eng_rate,                                     # 11 Engagement Rate
-            f"https://instagram.com/{username}",          # 12 Profile Link
-            datetime.now().strftime('%Y-%m-%d %H:%M'),   # 13 Last Updated
-            bio,                                          # 14 Bio/Description
-            profile['verified'],                          # 15 Verified Status
-            '',                                           # 16 Average Views
-            '',                                           # 17 Average Likes
-            '',                                           # 18 Average Comments
-            '',                                           # 19 Posting Frequency
-            'Instagram',                                  # 20 Primary Platform
-            '',                                           # 21 Secondary Platforms
-            '',                                           # 22 Reels %
-            '',                                           # 23 Posts %
-            '',                                           # 24 Stories %
-            '',                                           # 25 Audience Age
-            '',                                           # 26 Audience Gender
-            'India',                                      # 27 Audience Location
-            '',                                           # 28 Email
-            '',                                           # 29 Agency
-            collab['sponsored_count'],                    # 30 Sponsored Count
-            collab['affiliate_count'],                    # 31 Affiliate Count
-            collab['gifted_count'],                       # 32 Gifted Count
-            collab['total_collabs'],                      # 33 Total Collabs
-            collab['first_collab'],                       # 34 First Collab Date
-        ]
-
-        try:
-            sheet.append_row(row)
+        if result and result.get('success'):
             success += 1
-            print(f"  ✓ Added — {collab['total_collabs']} collabs, brands: {collab['brands'] or 'none found'}")
-        except Exception as e:
-            print(f"  ✗ Sheet write failed: {e}")
+            print(f"  ✓ Added to Convex — {collab['total_collabs']} collabs, brands: {collab['brands'] or 'none found'}")
+        else:
+            print(f"  ✗ Failed to add {username}")
 
         if i < len(usernames):
             delay = random.randint(12, 20)
@@ -471,7 +415,7 @@ def scrape_influencers(usernames):
 
     driver.quit()
     print("\n" + "=" * 60)
-    print(f"DONE — {success}/{len(usernames)} influencers added to sheet")
+    print(f"DONE — {success}/{len(usernames)} influencers added to Convex")
     print("=" * 60)
 
 
